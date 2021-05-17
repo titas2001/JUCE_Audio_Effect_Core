@@ -1,0 +1,445 @@
+void Pass_InputAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    auto totalNumInputChannels = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    /***************************************************************************************/
+    for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i) // clear the buffer 
+        buffer.clear(i, 0, buffer.getNumSamples());
+    /***************************************************************************************/
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel){
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample){
+            vin = buffer.getSample(channel, sample); 	// get the input sample
+            vout = vin;				
+            buffer.setSample(channel, sample, vout); 	// set the output sample value
+        }
+    }    
+}
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+Pass_InputAudioProcessorEditor:: Pass_InputAudioProcessorEditor(Pass_InputAudioProcessor& p, juce::AudioProcessorValueTreeState& vts)
+    : AudioProcessorEditor(&p), audioProcessor(p), audioTree(vts)
+{
+    setSize(450, 250);
+    controlGain.setColour(0x1001400, juce::Colour::fromRGBA(0x00, 0x40, 0x00, 0x80));
+    controlGain.setColour(0x1001700, juce::Colour::fromRGBA(0x00, 0x00, 0x00, 0x00));
+
+    controlGain.setSliderStyle(juce::Slider::LinearHorizontal);
+    controlGain.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 40, 20);
+    addAndMakeVisible(controlGain);
+    sliderAttachGain.reset(new juce::AudioProcessorValueTreeState::SliderAttachment(audioTree, "controlGain_ID", controlGain));
+    labelGain.setText(("Input Gain"), juce::dontSendNotification);
+    labelGain.setFont(juce::Font("Slope Opera", 16, 0));
+    labelGain.setColour(juce::Label::textColourId, juce::Colour::fromRGBA(0x40, 0x40, 0x80, 0xff));
+    addAndMakeVisible(labelGain);
+}
+
+
+
+
+// Add juce::AudioProcessorValueTreeState audioTree; to the header file under public class definitions 
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+Pass_InputAudioProcessorEditor::~Pass_InputAudioProcessorEditor()
+{
+    sliderAttachR.reset();
+}
+void Pass_InputAudioProcessorEditor::paint(juce::Graphics& g)
+{
+    // (Our component is opaque, so we must completely fill the background with a solid colour)
+    g.fillAll(juce::Colours::white);
+    // set the current drawing colour to black
+    g.setColour(juce::Colours::black);
+
+    // set the font size and draw text to the screen
+    g.setFont(15.0f);
+    g.setFont(juce::Font("Slope Opera", 35.0f, 1));
+    g.drawFittedText(“Pass Input", getLocalBounds(), juce::Justification::centred, 1);
+} void Pass_InputAudioProcessorEditor::resized()
+{
+    controlGain.setBounds(140, getHeight() - 20, getWidth() - 140, 20);
+    labelGain.setBounds(0, getHeight() - 20, 140, 20);
+}
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+#include <JuceHeader.h>
+#include "PluginProcessor.h"
+class Pass_InputAudioProcessorEditor  : public juce::AudioProcessorEditor
+{
+public:
+    Pass_InputAudioProcessorEditor (Pass_InputAudioProcessor&, juce::AudioProcessorValueTreeState&);
+    ~Pass_InputAudioProcessorEditor() override;
+
+    //==============================================================================
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    // This reference is provided as a quick way for your editor to
+    // access the processor object that created it.
+    Pass_InputAudioProcessor& audioProcessor;
+    juce::AudioProcessorValueTreeState& audioTree;
+    juce::Slider controlGain;
+    juce::Label labelGain;
+    std::unique_ptr <juce::AudioProcessorValueTreeState::SliderAttachment> sliderAttachGain;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Pass_InputAudioProcessorEditor)
+};
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+
+Pass_InputAudioProcessor::Pass_InputAudioProcessor()
+#ifndef JucePlugin_PreferredChannelConfigurations
+     : AudioProcessor (BusesProperties()
+                     #if ! JucePlugin_IsMidiEffect
+                      #if ! JucePlugin_IsSynth
+                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                      #endif
+                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                     #endif
+                       ),
+                    audioTree(*this, nullptr, juce::Identifier("PARAMETERS"),
+                        { std::make_unique<juce::AudioParameterFloat>("controlGain_ID","ControlGain",juce::NormalisableRange<float>(0.01, 1.0, 0.01),0.5)
+                        })
+#endif
+{
+    audioTree.addParameterListener("controlGain_ID", this);
+    controlledGain = 0.5;
+}
+void Pass_InputAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{ controlledGain = 0.5;}
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+
+void Pass_InputAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
+{
+    if (parameterID == "controlGain_ID") {
+        controlledGain = newValue; // controlledGain is defined in the header file as a private variable
+    }
+}
+void Pass_InputAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    auto totalNumInputChannels = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    /***************************************************************************************/
+    for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i) // clear the buffer 
+        buffer.clear(i, 0, buffer.getNumSamples());
+    /***************************************************************************************/
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel){
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample){
+            vin = buffer.getSample(channel, sample); 	// get the input sample
+            vout = vin * controlledGain;				
+            buffer.setSample(channel, sample, vout); 	// set the output sample value
+        }
+    }    
+}
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+#include "PluginProcessor.h"
+#include "PluginEditor.h"
+//==============================================================================
+Pass_InputAudioProcessor::Pass_InputAudioProcessor()
+#ifndef JucePlugin_PreferredChannelConfigurations
+     : AudioProcessor (BusesProperties()
+                     #if ! JucePlugin_IsMidiEffect
+                      #if ! JucePlugin_IsSynth
+                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                      #endif
+                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                     #endif
+                       ),
+		  audioTree(*this, nullptr, juce::Identifier("PARAMETERS"),	                       {std::make_unique<juce::AudioParameterFloat>("controlGain_ID","ControlGain",juce::NormalisableRange<float>(0.01, 1.0, 0.01),0.5)
+                        }),
+                       lowPassFilter(juce::dsp::IIR::Coefficients< float >::makeLowPass((48000.0 * 4.0), 20000.0))
+#endif
+{
+    oversampling.reset(new juce::dsp::Oversampling<float>(2, 2, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true));
+} 
+Pass_InputAudioProcessor::~Pass_InputAudioProcessor()
+{
+    oversampling.reset();
+}
+
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+
+void Pass_InputAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    oversampling->reset();
+    oversampling->initProcessing(static_cast<size_t> (samplesPerBlock));
+
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate * 4;
+    spec.maximumBlockSize = samplesPerBlock * 3;
+    spec.numChannels = getTotalNumOutputChannels();
+
+    lowPassFilter.prepare(spec);
+    lowPassFilter.reset();
+    
+    controlledGain = 0.5;
+}
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+
+void Pass_InputAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    auto totalNumInputChannels = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    /***************************************************************************************/
+    for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i) // clear the buffer 
+        buffer.clear(i, 0, buffer.getNumSamples());
+    juce::dsp::AudioBlock<float> blockInput(buffer); 
+    juce::dsp::AudioBlock<float> blockOutput = oversampling->processSamplesUp(blockInput);
+    updateFilter(0);
+    lowPassFilter.process(juce::dsp::ProcessContextReplacing<float>(blockOutput));
+    /***************************************************************************************/
+    for (int channel = 0; channel < blockOutput.getNumChannels(); ++channel){
+        for (int sample = 0; sample < blockOutput.getNumSamples(); ++sample){
+            vin = blockOutput.getSample(channel, sample); 	// get the input sample
+            vout = vin * controlledGain;				
+ 	blockOutput.setSample(channel, sample, vout); 	// set the output sample value
+        }
+    }
+    updateFilter(0);
+    lowPassFilter.process(juce::dsp::ProcessContextReplacing<float>(blockOutput));
+    oversampling->processSamplesDown(blockInput);
+
+    updateFilter(1);
+    lowPassFilter.process(juce::dsp::ProcessContextReplacing<float>(blockInput));
+}
+
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+void Pass_InputAudioProcessor::updateFilter(bool realFreq)
+{
+    double frequency;
+
+    if (realFreq) frequency = 48e3;
+    else frequency = 48e3 * 4;
+
+    *lowPassFilter.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass(frequency, 20000.0);
+}
+
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+
+public:
+…
+    double gdExp(double vc);
+    double gdExpDiff(double vc);
+    double limiter(double val);
+private:
+    double controlledGain;
+    double Id, C, Ve, Vp, R, err;
+    double Fs, T;
+    double vNom, vDenom;
+    float vin;
+    float vout, voutTemp, voutOld;
+…
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+…
+double DiodeClipperNRAudioProcessor::gdExp(double vc)
+{
+    return Id * (std::exp(vc / (2 * Ve)) - 1);
+}
+double DiodeClipperNRAudioProcessor::gdExpDiff(double vc)
+{
+    return (Id * std::exp(vc / (2 * Ve))) / (2 * Ve);
+}
+double DiodeClipperNRAudioProcessor::limiter(double val)
+{
+    if (val < -1){
+        val = -1;
+        return val;
+    } else if (val > 1){
+        val = 1;
+        return val;
+    } else return val;
+}
+…
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+
+DiodeClipperNRAudioProcessor::DiodeClipperNRAudioProcessor()
+#ifndef JucePlugin_PreferredChannelConfigurations
+    : AudioProcessor(BusesProperties()
+#if ! JucePlugin_IsMidiEffect
+#if ! JucePlugin_IsSynth
+        .withInput("Input", juce::AudioChannelSet::stereo(), true)
+#endif
+        .withOutput("Output", juce::AudioChannelSet::stereo(), true)
+#endif
+    ),
+    audioTree(*this, nullptr, juce::Identifier("PARAMETERS"),
+        { std::make_unique<juce::AudioParameterFloat>("controlGain_ID","ControlGain",juce::NormalisableRange<float>(0.0, 130.0, 0.1),1.0)
+        }),
+    lowPassFilter(juce::dsp::IIR::Coefficients< float >::makeLowPass((48000.0 * 16.0), 20000.0))
+#endif
+{
+    oversampling.reset(new juce::dsp::Oversampling<float>(2, 4, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, false));
+    audioTree.addParameterListener("controlGain_ID", this);
+    controlledGain = 1.0;
+}
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+void DiodeClipperNRAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+{    
+    …
+    spec.sampleRate = sampleRate * 16;
+    spec.maximumBlockSize = samplesPerBlock * 15;
+    spec.numChannels = getTotalNumOutputChannels();
+    lowPassFilter.prepare(spec);
+    lowPassFilter.reset();    
+    Fs = sampleRate;
+    err = 0.1e-3; // err for stopping iterations
+    T = 1 / Fs;
+    C = 100e-9;
+    R = 1e3;
+    Vp = 0.17;
+    Ve = 0.023;
+    Id = 2.52e-9;
+    controlledGain = 1.0;
+    voutOld = 0;
+}
+
+
+
+
+
+void DiodeClipperNRAudioProcessor::updateFilter()
+{
+    double frequency;
+    if (realFreq) frequency = 48e3;
+    else frequency = 48e3 * 16;
+    *lowPassFilter.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass(frequency, 20000.0);
+}
+
+
+
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
+
+
+…
+for (int channel = 0; channel < blockOutput.getNumChannels(); ++channel){
+        for (int sample = 0; sample < blockOutput.getNumSamples(); ++sample){
+            voutTemp = 1;
+            vout = 0;
+            vin = controlledGain *blockOutput.getSample(channel, sample);
+            while (std::abs(voutTemp - vout) > err) {
+                voutTemp = vout;
+                vNom = T * voutTemp * R * gdExpDiff(-voutTemp) + T * R * gdExp(-voutTemp) + voutOld * R * C + T * (gdExpDiff(voutTemp) * R * voutTemp - R * gdExp(voutTemp) + vin);
+                vDenom = T * R * gdExpDiff(voutTemp) + T * R * gdExpDiff(-voutTemp) + R * C + T;
+                vout = vNom / vDenom;
+            }
+            voutOld = vout;
+            vout = limiter(vout);
+            blockOutput.setSample(channel, sample, vout);
+        }
+    }
+…
+
+
+
+/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~/
+
+
+
